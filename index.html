@@ -40,12 +40,13 @@
       </button>
     </div>
 
-    <!-- Main -->
+    <!-- Main Content -->
     <div class="flex-1 flex flex-col">
       <div class="h-16 border-b border-zinc-800 bg-zinc-900 px-8 flex items-center justify-between">
         <div class="flex gap-4">
           <button onclick="setView('mine')" id="btn-mine" class="tab-btn active px-6 py-2 rounded-2xl font-medium">Мои задачи</button>
           <button onclick="setView('subordinates')" id="btn-sub" class="tab-btn px-6 py-2 rounded-2xl font-medium">Задачи подчинённых</button>
+          <button onclick="setView('archive')" id="btn-archive" class="tab-btn px-6 py-2 rounded-2xl font-medium">Архив</button>
         </div>
         <button onclick="showAddTaskModal()" id="add-task-btn" class="hidden bg-emerald-500 hover:bg-emerald-600 px-6 py-2.5 rounded-2xl flex items-center gap-2 font-medium">
           <i class="fas fa-plus"></i> Новая задача
@@ -55,7 +56,7 @@
     </div>
   </div>
 
-  <!-- Task Modal -->
+  <!-- Modal задачи -->
   <div id="task-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-lg mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Новая задача</h3>
@@ -69,7 +70,7 @@
     </div>
   </div>
 
-  <!-- Activity Modal -->
+  <!-- Modal занятости -->
   <div id="activity-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Чем сейчас занят</h3>
@@ -115,6 +116,7 @@
     let currentView = 'mine';
     let tasks = [];
     let activities = [];
+    let archive = [];
 
     const users = [
       { name: "Пантелеева Ильзира", role: "Главный специалист", password: "1234" },
@@ -136,6 +138,7 @@
       done: { text: "Выполнено", color: "bg-emerald-500" }
     };
 
+    // Реальное время
     db.ref('tasks').on('value', (snap) => {
       tasks = snap.val() ? Object.values(snap.val()) : [];
       renderTasks();
@@ -144,6 +147,10 @@
     db.ref('activities').on('value', (snap) => {
       activities = snap.val() ? Object.values(snap.val()) : [];
       renderWorkload();
+    });
+
+    db.ref('archive').on('value', (snap) => {
+      archive = snap.val() ? Object.values(snap.val()) : [];
     });
 
     function login() {
@@ -174,6 +181,7 @@
       currentView = view;
       document.getElementById('btn-mine').classList.toggle('active', view === 'mine');
       document.getElementById('btn-sub').classList.toggle('active', view === 'subordinates');
+      document.getElementById('btn-archive').classList.toggle('active', view === 'archive');
       renderTasks();
     }
 
@@ -232,7 +240,7 @@
     function showActivityModal() {
       const myTasks = tasks.filter(t => t.assignees.includes(currentUser.name) && t.status !== 'done');
       const select = document.getElementById('activity-task');
-      select.innerHTML = '<option value="">— Без привязки к задаче —</option>';
+      select.innerHTML = '<option value="">— Без задачи —</option>';
       myTasks.forEach(task => {
         const opt = document.createElement('option');
         opt.value = task.id;
@@ -297,7 +305,7 @@
     }
 
     function deleteActivity(id) {
-      if (!confirm("Удалить запись?")) return;
+      if (!confirm("Удалить запись о занятости?")) return;
       activities = activities.filter(a => a.id !== id);
       const actsObj = {};
       activities.forEach(a => actsObj[a.id] = a);
@@ -308,9 +316,14 @@
       const container = document.getElementById('tasks-container');
       const search = document.getElementById('search-input').value.toLowerCase();
 
-      let filtered = currentView === 'mine' 
-        ? tasks.filter(t => t.assignees.includes(currentUser.name))
-        : tasks.filter(t => getAllowedEmployees().some(u => t.assignees.includes(u.name)));
+      let filtered = [];
+      if (currentView === 'mine') {
+        filtered = tasks.filter(t => t.assignees.includes(currentUser ? currentUser.name : ''));
+      } else if (currentView === 'subordinates') {
+        filtered = tasks.filter(t => getAllowedEmployees().some(u => t.assignees.includes(u.name)));
+      } else if (currentView === 'archive') {
+        filtered = archive;
+      }
 
       if (search) filtered = filtered.filter(t => t.title.toLowerCase().includes(search));
 
@@ -331,6 +344,7 @@
               <p class="text-sm text-zinc-400 mt-3">Исполнители: ${task.assignees.join(', ')}</p>
               ${task.dueDate ? `<p class="text-sm mt-2 ${overdue ? 'text-red-400' : 'text-zinc-400'}">${due.toLocaleString('ru-RU')}</p>` : ''}
               <p class="text-xs text-zinc-500 mt-2">Постановщик: ${task.createdBy}</p>
+              <button onclick="archiveTask('${task.id}')" class="text-xs text-red-400 mt-4">В архив</button>
             </div>`;
         });
       }
@@ -346,6 +360,22 @@
       const tasksObj = {};
       tasks.forEach(t => tasksObj[t.id] = t);
       db.ref('tasks').set(tasksObj);
+    }
+
+    function archiveTask(id) {
+      if (!confirm("Переместить в архив?")) return;
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        archive.push(task);
+        tasks = tasks.filter(t => t.id !== id);
+        const tasksObj = {};
+        tasks.forEach(t => tasksObj[t.id] = t);
+        db.ref('tasks').set(tasksObj);
+        const archiveObj = {};
+        archive.forEach(t => archiveObj[t.id] = t);
+        db.ref('archive').set(archiveObj);
+        renderTasks();
+      }
     }
 
     function renderAll() {
