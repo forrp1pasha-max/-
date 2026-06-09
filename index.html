@@ -99,8 +99,8 @@
       </div>
 
       <div class="mb-6">
-        <label class="block text-sm text-zinc-400 mb-2">Комментарий</label>
-        <textarea id="delegate-comment" rows="3" placeholder="Почему делегируешь задачу..."
+        <label class="block text-sm text-zinc-400 mb-2">Описание задачи</label>
+        <textarea id="delegate-comment" rows="3" placeholder="Опиши, что нужно сделать..."
                   class="w-full bg-zinc-800 rounded-2xl px-5 py-3 outline-none resize-y"></textarea>
       </div>
 
@@ -128,7 +128,6 @@
     </div>
   </div>
 
-  <!-- Модальное окно входа -->
   <div id="login-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
     <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-md">
       <h2 class="text-2xl font-bold mb-6 text-center">Вход в ПДБ</h2>
@@ -306,6 +305,9 @@
       document.getElementById('task-title').value = '';
     }
 
+    // === ДЕЛЕГИРОВАНИЕ ===
+    let currentDelegatingTaskId = null;
+
     function showDelegateModal(taskId) {
       currentDelegatingTaskId = taskId;
       const task = tasks.find(t => t.id === taskId);
@@ -332,8 +334,6 @@
       currentDelegatingTaskId = null;
     }
 
-    let currentDelegatingTaskId = null;
-
     function confirmDelegate() {
       const task = tasks.find(t => t.id === currentDelegatingTaskId);
       if (!task) return;
@@ -349,7 +349,7 @@
 
       if (!task.comments) task.comments = [];
       task.comments.push({
-        text: commentText || "Без комментария",
+        text: commentText || "Без описания",
         by: currentUser.name,
         type: "delegation",
         to: newAssignee,
@@ -363,6 +363,43 @@
       hideDelegateModal();
       showToast(`Задача делегирована ${newAssignee}`);
       renderTasks();
+    }
+
+    // === ИЗМЕНЕНИЕ СТАТУСА + ОТЧЁТ ПРИ ЗАКРЫТИИ ===
+    function changeStatus(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task || !task.assignees.includes(currentUser.name)) {
+        alert("Только исполнитель может менять статус этой задачи");
+        return;
+      }
+
+      const order = ['todo', 'progress', 'review'];
+      let currentIndex = order.indexOf(task.status);
+      if (currentIndex === -1) currentIndex = 0;
+
+      const newStatus = order[(currentIndex + 1) % order.length];
+
+      // Если исполнитель отправляет на проверку — требуем отчёт
+      if (newStatus === 'review') {
+        const report = prompt("Напиши отчёт по задаче (обязательно):");
+        if (!report || report.trim() === "") {
+          alert("Отчёт обязателен для отправки задачи на проверку");
+          return;
+        }
+        if (!task.comments) task.comments = [];
+        task.comments.push({
+          text: report,
+          by: currentUser.name,
+          type: "report",
+          timestamp: Date.now()
+        });
+      }
+
+      task.status = newStatus;
+
+      const tasksObj = {};
+      tasks.forEach(t => tasksObj[t.id] = t);
+      db.ref('tasks').set(tasksObj);
     }
 
     function showActivityModal() {
@@ -485,7 +522,8 @@
             <div class="task-card bg-zinc-900 rounded-3xl p-6 border ${overdue ? 'border-red-500' : 'border-zinc-800'}">
               <div class="flex justify-between items-start">
                 <h4 class="font-medium">${task.title}</h4>
-                <span class="px-4 py-1 text-xs rounded-full ${st.color}">
+                <span onclick="${isAssignee ? `changeStatus('${task.id}')` : ''}" 
+                      class="px-4 py-1 text-xs rounded-full ${st.color} ${isAssignee ? 'cursor-pointer hover:opacity-80' : ''}">
                   ${st.text}
                 </span>
               </div>
@@ -529,26 +567,6 @@
       container.innerHTML = html;
     }
 
-    function changeStatus(id) {
-      const task = tasks.find(t => t.id === id);
-      if (!task) return;
-
-      if (!task.assignees.includes(currentUser.name)) {
-        alert("Только исполнитель может менять статус этой задачи");
-        return;
-      }
-
-      const order = ['todo', 'progress', 'review'];
-      let currentIndex = order.indexOf(task.status);
-      if (currentIndex === -1) currentIndex = 0;
-
-      task.status = order[(currentIndex + 1) % order.length];
-
-      const tasksObj = {};
-      tasks.forEach(t => tasksObj[t.id] = t);
-      db.ref('tasks').set(tasksObj);
-    }
-
     function approveTask(id) {
       const task = tasks.find(t => t.id === id);
       if (!task) return;
@@ -579,22 +597,6 @@
       const tasksObj = {};
       tasks.forEach(t => tasksObj[t.id] = t);
       db.ref('tasks').set(tasksObj);
-    }
-
-    function archiveTask(id) {
-      if (!confirm("Переместить задачу в архив?")) return;
-      const task = tasks.find(t => t.id === id);
-      if (task) {
-        archive.push(task);
-        tasks = tasks.filter(t => t.id !== id);
-        const tasksObj = {};
-        tasks.forEach(t => tasksObj[t.id] = t);
-        db.ref('tasks').set(tasksObj);
-        const archiveObj = {};
-        archive.forEach(t => archiveObj[t.id] = t);
-        db.ref('archive').set(archiveObj);
-        renderTasks();
-      }
     }
 
     function renderAll() {
