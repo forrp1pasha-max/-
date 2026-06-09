@@ -152,7 +152,7 @@
       todo: { text: "К выполнению", color: "bg-zinc-600" },
       progress: { text: "В работе", color: "bg-amber-500" },
       review: { text: "На проверке", color: "bg-blue-500" },
-      verified: { text: "Проверено", color: "bg-emerald-500" },
+      verified: { text: "Выполнено", color: "bg-emerald-500" },
       revision: { text: "На доработку", color: "bg-orange-500" }
     };
 
@@ -393,14 +393,15 @@
           const st = statusMap[task.status] || { text: task.status || "Неизвестно", color: "bg-zinc-600" };
           const isAssignee = task.assignees.includes(currentUser.name);
           const isCreator = task.createdBy === currentUser.name;
-          const showReviewButtons = isCreator && task.status === 'review';
+
+          // В архиве кнопок быть не должно
+          const showReviewButtons = isCreator && task.status === 'review' && currentView !== 'archive';
 
           html += `
             <div class="task-card bg-zinc-900 rounded-3xl p-6 border ${overdue ? 'border-red-500' : 'border-zinc-800'}">
               <div class="flex justify-between items-start">
                 <h4 class="font-medium">${task.title}</h4>
-                <span onclick="${isAssignee ? `changeStatus('${task.id}')` : ''}" 
-                      class="px-4 py-1 text-xs rounded-full ${st.color} ${isAssignee ? 'cursor-pointer hover:opacity-80' : ''}">
+                <span class="px-4 py-1 text-xs rounded-full ${st.color}">
                   ${st.text}
                 </span>
               </div>
@@ -455,6 +456,8 @@
       const task = tasks.find(t => t.id === id);
       if (!task) return;
 
+      // Ставим статус "Выполнено" и сохраняем кто проверил
+      task.status = 'verified';
       task.verifiedBy = currentUser.name;
       task.verifiedAt = new Date().toISOString();
 
