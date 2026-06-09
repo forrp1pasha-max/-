@@ -390,7 +390,10 @@
         filtered.forEach(task => {
           const due = task.dueDate ? new Date(task.dueDate) : null;
           const overdue = due && due < new Date() && task.status !== 'done';
-          const st = statusMap[task.status];
+
+          // Безопасный доступ к statusMap
+          const st = statusMap[task.status] || { text: task.status || "Неизвестно", color: "bg-zinc-600" };
+
           const isAssignee = task.assignees.includes(currentUser.name);
           const isCreator = task.createdBy === currentUser.name;
           const showReviewButtons = isCreator && task.status === 'review';
@@ -455,7 +458,6 @@
       const task = tasks.find(t => t.id === id);
       if (!task) return;
 
-      // Добавляем информацию о том, кто проверил
       task.verifiedBy = currentUser.name;
       task.verifiedAt = new Date().toISOString();
 
