@@ -237,15 +237,6 @@
       return [];
     }
 
-    function canChangeStatus(task) {
-      return currentUser && task.assignees.includes(currentUser.name);
-    }
-
-    function canReviewTasks() {
-      if (!currentUser) return false;
-      return ["Главный специалист", "Ведущий специалист", "Старший специалист"].includes(currentUser.role);
-    }
-
     function showAddTaskModal() {
       const select = document.getElementById('task-employees');
       select.innerHTML = '';
@@ -375,7 +366,11 @@
 
       let filtered = [];
       if (currentView === 'mine') {
-        filtered = tasks.filter(t => t.assignees.includes(currentUser.name));
+        // Мои задачи + задачи, которые я поставил и которые на проверке
+        filtered = tasks.filter(t => 
+          t.assignees.includes(currentUser.name) || 
+          (t.createdBy === currentUser.name && t.status === 'review')
+        );
       } else if (currentView === 'subordinates') {
         filtered = tasks.filter(t => getAllowedEmployees().some(u => t.assignees.includes(u.name)));
       } else if (currentView === 'archive') {
@@ -397,7 +392,8 @@
           const overdue = due && due < new Date() && task.status !== 'done';
           const st = statusMap[task.status];
           const isAssignee = task.assignees.includes(currentUser.name);
-          const canReview = canReviewTasks() && task.status === 'review';
+          const isCreator = task.createdBy === currentUser.name;
+          const showReviewButtons = (isCreator || canReviewTasks()) && task.status === 'review';
 
           html += `
             <div class="task-card bg-zinc-900 rounded-3xl p-6 border ${overdue ? 'border-red-500' : 'border-zinc-800'}">
@@ -412,11 +408,11 @@
               ${task.dueDate ? `<p class="text-sm mt-2 ${overdue ? 'text-red-400' : 'text-zinc-400'}">${due.toLocaleString('ru-RU')}</p>` : ''}
               <p class="text-xs text-zinc-500 mt-2">Постановщик: ${task.createdBy}</p>
 
-              ${canReview ? `
+              ${showReviewButtons ? `
                 <div class="flex gap-2 mt-4">
-                  <button onclick="verifyTask('${task.id}')" 
+                  <button onclick="approveTask('${task.id}')" 
                           class="flex-1 text-xs bg-emerald-600 hover:bg-emerald-500 py-2 rounded-xl font-medium">
-                    ✓ Проверено
+                    ✓ Проверено (в архив)
                   </button>
                   <button onclick="requestRevision('${task.id}')" 
                           class="flex-1 text-xs bg-orange-600 hover:bg-orange-500 py-2 rounded-xl font-medium">
@@ -451,13 +447,25 @@
       db.ref('tasks').set(tasksObj);
     }
 
-    function verifyTask(id) {
+    // Руководитель подтверждает → задача сразу в архив
+    function approveTask(id) {
       const task = tasks.find(t => t.id === id);
       if (!task) return;
-      task.status = 'verified';
+
+      // Перемещаем в архив
+      archive.push(task);
+      tasks = tasks.filter(t => t.id !== id);
+
       const tasksObj = {};
       tasks.forEach(t => tasksObj[t.id] = t);
       db.ref('tasks').set(tasksObj);
+
+      const archiveObj = {};
+      archive.forEach(t => archiveObj[t.id] = t);
+      db.ref('archive').set(archiveObj);
+
+      showToast('Задача подтверждена и отправлена в архив');
+      renderTasks();
     }
 
     function requestRevision(id) {
