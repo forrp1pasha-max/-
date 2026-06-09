@@ -194,12 +194,6 @@
       }, 4500);
     }
 
-    // === Проверка, может ли пользователь проверять задачи ===
-    function canReviewTasks() {
-      if (!currentUser) return false;
-      return ["Главный специалист", "Ведущий специалист", "Старший специалист"].includes(currentUser.role);
-    }
-
     function login() {
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
@@ -398,7 +392,9 @@
           const st = statusMap[task.status];
           const isAssignee = task.assignees.includes(currentUser.name);
           const isCreator = task.createdBy === currentUser.name;
-          const showReviewButtons = (isCreator || canReviewTasks()) && task.status === 'review';
+
+          // Кнопки проверки показываются ТОЛЬКО постановщику
+          const showReviewButtons = isCreator && task.status === 'review';
 
           html += `
             <div class="task-card bg-zinc-900 rounded-3xl p-6 border ${overdue ? 'border-red-500' : 'border-zinc-800'}">
