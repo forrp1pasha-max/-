@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ПДБ — Система задач</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; }
+    .task-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .task-card:hover { transform: translateY(-6px); }
+    .tab-btn.active { background-color: rgb(37 99 235); color: white; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); }
+  </style>
+</head>
+<body class="bg-zinc-950 text-white">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <div class="w-80 bg-zinc-900 border-r border-zinc-800 p-6 overflow-y-auto">
+      <div class="flex items-center gap-3 mb-8">
+        <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-violet-600 rounded-2xl flex items-center justify-center text-3xl font-bold shadow-lg">ПДБ</div>
+        <div>
+          <h1 class="text-3xl font-bold tracking-tight">ПДБ</h1>
+          <p class="text-xs text-zinc-500">Отслеживание задач</p>
+        </div>
+      </div>
+
+      <div class="mb-6 bg-zinc-800 rounded-3xl p-4">
+        <p class="text-zinc-400 text-sm">Текущий пользователь</p>
+        <p id="current-user" class="font-semibold text-lg"></p>
+        <p id="current-role" class="text-sm text-emerald-400"></p>
+      </div>
+
+      <button onclick="logout()" class="w-full mb-8 text-red-400 hover:text-red-500 flex items-center gap-2 text-sm">
+        <i class="fas fa-sign-out-alt"></i> Выйти
+      </button>
+
+      <h2 class="text-sm uppercase tracking-widest text-zinc-500 mb-3">Текущая занятость</h2>
+      <div id="workload-list" class="space-y-3 mb-8"></div>
+
+      <button onclick="showActivityModal()" class="w-full bg-violet-600 hover:bg-violet-500 py-3.5 rounded-2xl flex items-center justify-center gap-2 font-medium mb-8">
+        <i class="fas fa-clock"></i> Отметить чем занят
+      </button>
+
+      <button onclick="location.reload()" class="w-full text-zinc-400 hover:text-white py-2 text-sm flex items-center justify-center gap-2">
+        <i class="fas fa-sync"></i> Обновить данные
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col">
+      <div class="h-16 border-b border-zinc-800 bg-zinc-900 px-8 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <button onclick="setView('mine')" id="btn-mine" class="tab-btn active px-6 py-2 rounded-2xl font-medium">Мои задачи</button>
+          <button onclick="setView('subordinates')" id="btn-sub" class="tab-btn hidden px-6 py-2 rounded-2xl font-medium">Задачи подчинённых</button>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <input id="search-input" type="text" placeholder="🔍 Поиск задач..." 
+                 class="bg-zinc-800 rounded-2xl px-5 py-2.5 w-96 outline-none focus:ring-2 focus:ring-blue-500"
+                 onkeyup="renderTasks()">
+          <button onclick="showAddTaskModal()" id="add-task-btn" class="hidden bg-emerald-500 hover:bg-emerald-600 px-6 py-2.5 rounded-2xl flex items-center gap-2 font-medium">
+            <i class="fas fa-plus"></i> Новая задача
+          </button>
+        </div>
+      </div>
+
+      <div class="p-8 flex-1 overflow-y-auto" id="tasks-container"></div>
+    </div>
+  </div>
+
+  <!-- Modal задачи -->
+  <div id="task-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="bg-zinc-900 rounded-3xl w-full max-w-lg mx-4 p-8">
+      <h3 class="text-2xl font-semibold mb-6">Новая задача</h3>
+      <input id="task-title" type="text" placeholder="Название задачи" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4 outline-none focus:ring-2 focus:ring-blue-500">
+      <label class="block text-sm text-zinc-400 mb-2">Исполнители (можно несколько)</label>
+      <select id="task-employees" multiple class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 outline-none focus:ring-2 focus:ring-blue-500 h-56"></select>
+      <label class="block text-sm text-zinc-400 mb-2">Срок выполнения</label>
+      <input id="task-datetime" type="datetime-local" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 outline-none">
+      <div class="flex gap-4">
+        <button onclick="hideModal()" class="flex-1 py-4 rounded-2xl border border-zinc-700 hover:bg-zinc-800">Отмена</button>
+        <button onclick="addTask()" class="flex-1 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500">Создать задачу</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal занятости -->
+  <div id="activity-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
+      <h3 class="text-2xl font-semibold mb-6">Чем сейчас занят</h3>
+      <input id="activity-desc" type="text" placeholder="Например: Делаю отчёт по продажам" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4 outline-none">
+      <label class="block text-sm text-zinc-400 mb-2">Привязать к задаче</label>
+      <select id="activity-task" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 outline-none"></select>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-zinc-400 mb-1">С</label>
+          <input id="activity-from" type="time" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
+        </div>
+        <div>
+          <label class="block text-sm text-zinc-400 mb-1">До</label>
+          <input id="activity-to" type="time" class="w-full bg-zinc-800 rounded-2xl px-5 py-4">
+        </div>
+      </div>
+      <div class="flex gap-4 mt-8">
+        <button onclick="hideActivityModal()" class="flex-1 py-4 rounded-2xl border border-zinc-700 hover:bg-zinc-800">Отмена</button>
+        <button onclick="saveActivity()" class="flex-1 py-4 rounded-2xl bg-violet-600 hover:bg-violet-500">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-md">
+      <h2 class="text-2xl font-bold mb-6 text-center">Вход в ПДБ</h2>
+      <input id="username" type="text" placeholder="ФИО" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4">
+      <input id="password" type="password" placeholder="Пароль" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6">
+      <button onclick="login()" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-medium">Войти</button>
+      <p class="text-center text-xs text-zinc-500 mt-4">Пароль по умолчанию: 1234</p>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let currentView = 'mine';
+
+    let users = [
+      { name: "Пантелеева Ильзира", role: "Главный специалист", password: "1234" },
+      { name: "Фазылов Азат", role: "Ведущий специалист", password: "1234" },
+      { name: "Заводнов Илья", role: "Ведущий специалист", password: "1234" },
+      { name: "Матюшкин Эдвард", role: "Специалист", password: "1234" },
+      { name: "Ильин Ярослав", role: "Специалист", password: "1234" },
+      { name: "Варламова Оксана", role: "Специалист", password: "1234" },
+      { name: "Карасев Роман", role: "Младший специалист", password: "1234" },
+      { name: "Ахметшина Вероника", role: "Младший специалист", password: "1234" },
+      { name: "Бурдина Динара", role: "Младший специалист", password: "1234" },
+      { name: "Матвеев Шамиль", role: "Младший специалист", password: "1234" },
+      { name: "Черных Даниил", role: "Старший специалист", password: "1234" }
+    ];
+
+    let tasks = JSON.parse(localStorage.getItem('pdb_tasks')) || [];
+    let activities = JSON.parse(localStorage.getItem('pdb_activities')) || [];
+
+    const statusMap = {
+      todo: { text: "К выполнению", color: "bg-zinc-600" },
+      progress: { text: "В работе", color: "bg-amber-500" },
+      done: { text: "Выполнено", color: "bg-emerald-500" }
+    };
+
+    // Автоматический вход при загрузке
+    function autoLogin() {
+      const savedUser = localStorage.getItem('currentUser');
+      if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('current-user').textContent = currentUser.name;
+        document.getElementById('current-role').textContent = currentUser.role;
+
+        document.getElementById('add-task-btn').classList.toggle('hidden', currentUser.role === "Младший специалист");
+        const canSeeSub = ["Главный специалист","Ведущий специалист","Старший специалист","Специалист"].includes(currentUser.role);
+        document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
+
+        renderAll();
+      }
+    }
+
+    function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const user = users.find(u => u.name === username && u.password === password);
+      
+      if (user) {
+        currentUser = user;
+        localStorage.setItem('currentUser', JSON.stringify(user)); // Сохраняем в localStorage
+        document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('current-user').textContent = user.name;
+        document.getElementById('current-role').textContent = user.role;
+
+        document.getElementById('add-task-btn').classList.toggle('hidden', user.role === "Младший специалист");
+        const canSeeSub = ["Главный специалист","Ведущий специалист","Старший специалист","Специалист"].includes(user.role);
+        document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
+
+        renderAll();
+      } else {
+        alert("Неверные данные для входа");
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('currentUser');
+      location.reload();
+    }
+
+    // Остальные функции (renderTasks, renderWorkload и т.д.) остались без изменений
+    function setView(view) {
+      currentView = view;
+      document.getElementById('btn-mine').classList.toggle('active', view === 'mine');
+      document.getElementById('btn-sub').classList.toggle('active', view === 'subordinates');
+      renderTasks();
+    }
+
+    function getAllowedEmployees() {
+      if (!currentUser) return [];
+      if (currentUser.role === "Главный специалист") return users;
+      if (["Ведущий специалист", "Старший специалист"].includes(currentUser.role)) {
+        return users.filter(u => ["Специалист", "Младший специалист"].includes(u.role));
+      }
+      if (currentUser.role === "Специалист") {
+        return users.filter(u => u.role === "Младший специалист");
+      }
+      return [];
+    }
+
+    function showAddTaskModal() {
+      const select = document.getElementById('task-employees');
+      select.innerHTML = '';
+      getAllowedEmployees().forEach(emp => {
+        const option = document.createElement('option');
+        option.value = emp.name;
+        option.textContent = `${emp.name} (${emp.role})`;
+        select.appendChild(option);
+      });
+      document.getElementById('task-modal').classList.remove('hidden');
+    }
+
+    function hideModal() { document.getElementById('task-modal').classList.add('hidden'); }
+
+    function addTask() {
+      const title = document.getElementById('task-title').value.trim();
+      const selected = Array.from(document.getElementById('task-employees').selectedOptions).map(opt => opt.value);
+      const due = document.getElementById('task-datetime').value;
+      if (!title || selected.length === 0) return alert("Заполните название и выберите исполнителей");
+
+      selected.forEach(name => {
+        tasks.push({ id: Date.now() + Math.random(), title, assignees: [name], dueDate: due, status: 'todo', createdBy: currentUser.name });
+      });
+      hideModal();
+      saveData();
+    }
+
+    function changeStatus(taskId) {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const order = ['todo', 'progress', 'done'];
+      task.status = order[(order.indexOf(task.status) + 1) % 3];
+      saveData();
+    }
+
+    function showActivityModal() {
+      const myTasks = tasks.filter(t => t.assignees.includes(currentUser.name) && t.status !== 'done');
+      const select = document.getElementById('activity-task');
+      select.innerHTML = '<option value="">— Без привязки к задаче —</option>';
+      myTasks.forEach(task => {
+        const opt = document.createElement('option');
+        opt.value = task.id;
+        opt.textContent = task.title;
+        select.appendChild(opt);
+      });
+      document.getElementById('activity-modal').classList.remove('hidden');
+    }
+
+    function hideActivityModal() { document.getElementById('activity-modal').classList.add('hidden'); }
+
+    function saveActivity() {
+      const desc = document.getElementById('activity-desc').value.trim();
+      const taskId = document.getElementById('activity-task').value;
+      const from = document.getElementById('activity-from').value;
+      const to = document.getElementById('activity-to').value;
+      if (!desc || !from || !to) return alert("Заполните описание и время");
+
+      activities = activities.filter(a => a.user !== currentUser.name);
+      activities.push({ user: currentUser.name, description: desc, taskId: taskId || null, from, to, timestamp: new Date().toISOString() });
+      localStorage.setItem('pdb_activities', JSON.stringify(activities));
+      hideActivityModal();
+      renderWorkload();
+    }
+
+    function renderWorkload() {
+      const container = document.getElementById('workload-list');
+      container.innerHTML = '';
+      users.forEach(user => {
+        const act = activities.find(a => a.user === user.name);
+        if (act) {
+          const now = new Date();
+          const today = now.toDateString();
+          const toTime = new Date(`${today} ${act.to}`);
+          const isActive = toTime > now;
+          container.innerHTML += `
+            <div class="bg-zinc-800 rounded-2xl p-3 ${isActive ? 'border-l-4 border-violet-500' : 'opacity-70'}">
+              <div class="flex justify-between text-sm">
+                <span class="font-medium">${user.name.split(' ')[0]}</span>
+                <span class="text-zinc-400">${act.from}–${act.to}</span>
+              </div>
+              <p class="text-zinc-300 text-sm mt-1">${act.description}</p>
+            </div>`;
+        } else {
+          container.innerHTML += `<div class="bg-zinc-900 rounded-2xl p-3 text-sm text-zinc-500">${user.name.split(' ')[0]} — свободен</div>`;
+        }
+      });
+    }
+
+    function renderTasks() {
+      const container = document.getElementById('tasks-container');
+      const search = document.getElementById('search-input').value.toLowerCase();
+      let filtered = currentView === 'mine' 
+        ? tasks.filter(t => t.assignees.includes(currentUser.name))
+        : tasks.filter(t => getAllowedEmployees().some(u => t.assignees.includes(u.name)));
+      if (search) filtered = filtered.filter(t => t.title.toLowerCase().includes(search));
+
+      let html = `<div class="space-y-4">`;
+      if (filtered.length === 0) {
+        html += `<p class="text-center text-zinc-500 py-20">Задач не найдено</p>`;
+      } else {
+        filtered.forEach(task => {
+          const due = task.dueDate ? new Date(task.dueDate) : null;
+          const overdue = due && due < new Date() && task.status !== 'done';
+          const st = statusMap[task.status];
+          html += `
+            <div class="task-card bg-zinc-900 rounded-3xl p-6 border ${overdue ? 'border-red-500' : 'border-zinc-800'}">
+              <div class="flex justify-between items-start">
+                <h4 class="font-medium text-lg">${task.title}</h4>
+                <span onclick="changeStatus(${task.id})" class="cursor-pointer px-4 py-1 text-xs rounded-full ${st.color} whitespace-nowrap">${st.text}</span>
+              </div>
+              <p class="text-sm text-zinc-400 mt-3">Исполнители: ${task.assignees.join(', ')}</p>
+              ${task.dueDate ? `<p class="text-sm mt-2 ${overdue ? 'text-red-400' : 'text-zinc-400'}">${due.toLocaleString('ru-RU')}</p>` : ''}
+              <p class="text-xs text-zinc-500 mt-2">Постановщик: ${task.createdBy}</p>
+            </div>`;
+        });
+      }
+      html += `</div>`;
+      container.innerHTML = html;
+    }
+
+    function saveData() {
+      localStorage.setItem('pdb_tasks', JSON.stringify(tasks));
+      renderTasks();
+      renderWorkload();
+    }
+
+    function renderAll() {
+      renderTasks();
+      renderWorkload();
+    }
+
+    // Автологин при загрузке страницы
+    window.onload = autoLogin;
+  </script>
+</body>
+</html>
