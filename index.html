@@ -54,7 +54,6 @@
                  class="bg-zinc-800 rounded-2xl px-5 py-2.5 w-96 outline-none focus:ring-2 focus:ring-blue-500"
                  onkeyup="renderTasks()">
 
-          <!-- Новый фильтр по исполнителю -->
           <select id="filter-assignee" class="bg-zinc-800 rounded-2xl px-5 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" onchange="renderTasks()">
             <option value="">Все исполнители</option>
           </select>
@@ -67,6 +66,12 @@
 
       <div class="p-8 flex-1 overflow-y-auto" id="tasks-container"></div>
     </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-lg flex items-center gap-3 z-50">
+    <i class="fas fa-check-circle"></i>
+    <span id="toast-text"></span>
   </div>
 
   <!-- Модальные окна -->
@@ -149,7 +154,6 @@
       done: { text: "Выполнено", color: "bg-emerald-500" }
     };
 
-    // Реальное время
     db.ref('tasks').on('value', (snap) => {
       tasks = snap.val() ? Object.values(snap.val()) : [];
       renderTasks();
@@ -176,6 +180,40 @@
       });
     }
 
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      const text = document.getElementById('toast-text');
+      text.textContent = message;
+      toast.classList.remove('hidden');
+      toast.classList.add('flex');
+      setTimeout(() => {
+        toast.classList.remove('flex');
+        toast.classList.add('hidden');
+      }, 4500);
+    }
+
+    // === СБРОС ЗАГРУЖЕННОСТИ КАЖДЫЙ ДЕНЬ В 7:00 ===
+    async function checkDailyReset() {
+      if (!currentUser) return;
+
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      const currentHour = now.getHours();
+
+      const lastResetSnap = await db.ref('lastReset').once('value');
+      const lastReset = lastResetSnap.val();
+
+      if (currentHour >= 7 && lastReset !== todayStr) {
+        // Очищаем всю текущую загруженность
+        await db.ref('activities').set({});
+
+        showToast('Загруженность за вчерашний день очищена');
+
+        // Фиксируем сброс
+        await db.ref('lastReset').set(todayStr);
+      }
+    }
+
     function login() {
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
@@ -191,6 +229,7 @@
         document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
         populateAssigneeFilter();
         renderAll();
+        checkDailyReset();
       } else {
         alert("Неверные данные");
       }
@@ -429,6 +468,11 @@
         document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
         populateAssigneeFilter();
         renderAll();
+        checkDailyReset();
+
+        setInterval(() => {
+          if (currentUser) checkDailyReset();
+        }, 10 * 60 * 1000);
       }
     };
   </script>
