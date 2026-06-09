@@ -30,7 +30,9 @@
         <p id="current-role" class="text-sm text-emerald-400"></p>
       </div>
 
-      <button onclick="logout()" class="w-full mb-8 text-red-400 hover:text-red-500 flex items-center gap-2">Выйти</button>
+      <button onclick="logout()" class="w-full mb-8 text-red-400 hover:text-red-500 flex items-center gap-2">
+        <i class="fas fa-sign-out-alt"></i> Выйти
+      </button>
 
       <h2 class="text-sm uppercase tracking-widest text-zinc-500 mb-3">Текущая занятость</h2>
       <div id="workload-list" class="space-y-3 mb-8"></div>
@@ -75,10 +77,10 @@
   </div>
 
   <!-- Модальные окна -->
-  <div id="task-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+  <div id="task-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50" onclick="if(event.target===this)hideModal()">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-lg mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Новая задача</h3>
-      <input id="task-title" placeholder="Название задачи" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4 outline-none">
+      <input id="task-title" placeholder="Название задачи" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4 outline-none" onkeydown="if(event.key==='Enter')addTask()">
       <select id="task-employees" multiple class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 h-56 outline-none"></select>
       <input id="task-datetime" type="datetime-local" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 outline-none">
       <div class="flex gap-4">
@@ -88,7 +90,7 @@
     </div>
   </div>
 
-  <div id="delegate-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+  <div id="delegate-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50" onclick="if(event.target===this)hideDelegateModal()">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Делегировать задачу</h3>
       
@@ -110,7 +112,7 @@
     </div>
   </div>
 
-  <div id="activity-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+  <div id="activity-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50" onclick="if(event.target===this)hideActivityModal()">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Чем сейчас занят</h3>
       <input id="activity-desc" placeholder="Что делаю..." class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4 outline-none">
@@ -130,9 +132,22 @@
     <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-md">
       <h2 class="text-2xl font-bold mb-6 text-center">Вход в ПДБ</h2>
       <input id="username" placeholder="ФИО" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4">
-      <input id="password" type="password" placeholder="Пароль" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6">
+      <input id="password" type="password" placeholder="Пароль" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6" onkeydown="if(event.key==='Enter')login()">
       <button onclick="login()" class="w-full bg-blue-600 py-4 rounded-2xl font-medium">Войти</button>
       <p class="text-center text-xs text-zinc-500 mt-4">Пароль: 1234</p>
+    </div>
+  </div>
+
+  <!-- Модальное окно отчёта -->
+  <div id="report-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
+      <h3 class="text-2xl font-semibold mb-6">Отчёт по задаче</h3>
+      <textarea id="report-text" rows="5" placeholder="Опиши что было сделано..."
+                class="w-full bg-zinc-800 rounded-2xl px-5 py-3 outline-none resize-y mb-6"></textarea>
+      <div class="flex gap-4">
+        <button onclick="document.getElementById('report-modal').classList.add('hidden')" class="flex-1 py-4 rounded-2xl border border-zinc-700">Отмена</button>
+        <button onclick="submitReport()" class="flex-1 py-4 rounded-2xl bg-blue-600">Отправить на проверку</button>
+      </div>
     </div>
   </div>
 
@@ -205,14 +220,14 @@
       });
     }
 
-    function showToast(message) {
+    function showToast(message, type = 'success') {
       const toast = document.getElementById('toast');
       const text = document.getElementById('toast-text');
       text.textContent = message;
-      toast.classList.remove('hidden');
-      toast.classList.add('flex');
-      setTimeout(() => {
-        toast.classList.remove('flex');
+      toast.className = `fixed bottom-6 right-6 text-white px-6 py-3 rounded-2xl shadow-lg flex items-center gap-3 z-50 ${type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`;
+      toast.querySelector('i').className = type === 'error' ? 'fas fa-exclamation-circle' : 'fas fa-check-circle';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
         toast.classList.add('hidden');
       }, 4500);
     }
@@ -233,7 +248,7 @@
         populateAssigneeFilter();
         renderAll();
       } else {
-        alert("Неверные данные");
+        showToast("Неверные данные", "error");
       }
     }
 
@@ -281,11 +296,11 @@
       const selected = Array.from(document.getElementById('task-employees').selectedOptions).map(opt => opt.value);
       const due = document.getElementById('task-datetime').value;
 
-      if (!title || selected.length === 0) return alert("Введите название и выберите исполнителя");
+      if (!title || selected.length === 0) return showToast("Введите название и выберите исполнителя", "error");
 
-      selected.forEach(name => {
+      selected.forEach((name, i) => {
         tasks.push({
-          id: 'task_' + Date.now(),
+          id: 'task_' + Date.now() + '_' + i,
           title: title,
           assignees: [name],
           dueDate: due,
@@ -301,6 +316,9 @@
 
       hideModal();
       document.getElementById('task-title').value = '';
+      document.getElementById('task-datetime').value = '';
+      Array.from(document.getElementById('task-employees').options).forEach(o => o.selected = false);
+      showToast(`Создано задач: ${selected.length}`);
     }
 
     function showDelegateModal(taskId) {
@@ -338,7 +356,7 @@
       const newAssignee = document.getElementById('delegate-to').value;
       const commentText = document.getElementById('delegate-comment').value.trim();
 
-      if (!newAssignee) return alert("Выберите сотрудника");
+      if (!newAssignee) return showToast("Выберите сотрудника", "error");
 
       if (!task.assignees.includes(newAssignee)) {
         task.assignees.push(newAssignee);
@@ -385,7 +403,7 @@
       const from = document.getElementById('activity-from').value;
       const to = document.getElementById('activity-to').value;
 
-      if (!desc || !from || !to) return alert("Заполните все поля");
+      if (!desc || !from || !to) return showToast("Заполните все поля", "error");
 
       const newAct = {
         id: 'act_' + Date.now(),
@@ -449,6 +467,7 @@
       const actsObj = {};
       activities.forEach(a => actsObj[a.id] = a);
       db.ref('activities').set(actsObj);
+      showToast("Запись удалена");
     }
 
     function renderTasks() {
@@ -492,12 +511,17 @@
           const showReviewButtons = isCreator && task.status === 'review' && currentView !== 'archive';
           const canDelegate = isAssignee && currentView !== 'archive';
 
+          const isRevision = task.status === 'revision';
+          const statusHint = isAssignee && task.status === 'revision' ? '⚠️ Нужна доработка — нажми для продолжения' : 
+                             isAssignee && task.status !== 'review' && task.status !== 'verified' ? 'Нажми чтобы сменить статус' : '';
+
           html += `
-            <div class="task-card bg-zinc-900 rounded-3xl p-6 border ${overdue ? 'border-red-500' : 'border-zinc-800'}">
+            <div class="task-card bg-zinc-900 rounded-3xl p-6 border ${overdue ? 'border-red-500' : isRevision ? 'border-orange-500' : 'border-zinc-800'}">
               <div class="flex justify-between items-start">
                 <h4 class="font-medium">${task.title}</h4>
-                <span onclick="${isAssignee ? `changeStatus('${task.id}')` : ''}" 
-                      class="px-4 py-1 text-xs rounded-full ${st.color} ${isAssignee ? 'cursor-pointer hover:opacity-80' : ''}">
+                <span onclick="${isAssignee && task.status !== 'review' && task.status !== 'verified' ? `changeStatus('${task.id}')` : ''}" 
+                      title="${statusHint}"
+                      class="px-4 py-1 text-xs rounded-full ${st.color} ${isAssignee && task.status !== 'review' && task.status !== 'verified' ? 'cursor-pointer hover:opacity-80' : ''}">
                   ${st.text}
                 </span>
               </div>
@@ -544,36 +568,53 @@
     function changeStatus(id) {
       const task = tasks.find(t => t.id === id);
       if (!task || !task.assignees.includes(currentUser.name)) {
-        alert("Только исполнитель может менять статус этой задачи");
+        showToast("Только исполнитель может менять статус этой задачи", "error");
         return;
       }
 
       const order = ['todo', 'progress', 'review'];
       let currentIndex = order.indexOf(task.status);
-      if (currentIndex === -1) currentIndex = 0;
+      // Если статус revision — возвращаем в progress
+      if (task.status === 'revision') currentIndex = 1;
+      else if (currentIndex === -1) currentIndex = 0;
 
       const newStatus = order[(currentIndex + 1) % order.length];
 
       if (newStatus === 'review') {
-        const report = prompt("Напиши отчёт по задаче (обязательно):");
-        if (!report || report.trim() === "") {
-          alert("Отчёт обязателен для отправки на проверку");
-          return;
-        }
-        if (!task.comments) task.comments = [];
-        task.comments.push({
-          text: report,
-          by: currentUser.name,
-          type: "report",
-          timestamp: Date.now()
-        });
+        showReportModal(id);
+        return;
       }
 
       task.status = newStatus;
-
       const tasksObj = {};
       tasks.forEach(t => tasksObj[t.id] = t);
       db.ref('tasks').set(tasksObj);
+    }
+
+    function showReportModal(taskId) {
+      document.getElementById('report-modal').classList.remove('hidden');
+      document.getElementById('report-modal').dataset.taskId = taskId;
+      document.getElementById('report-text').value = '';
+      setTimeout(() => document.getElementById('report-text').focus(), 50);
+    }
+
+    function submitReport() {
+      const taskId = document.getElementById('report-modal').dataset.taskId;
+      const report = document.getElementById('report-text').value.trim();
+      if (!report) {
+        showToast("Отчёт обязателен для отправки на проверку", "error");
+        return;
+      }
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+      if (!task.comments) task.comments = [];
+      task.comments.push({ text: report, by: currentUser.name, type: "report", timestamp: Date.now() });
+      task.status = 'review';
+      const tasksObj = {};
+      tasks.forEach(t => tasksObj[t.id] = t);
+      db.ref('tasks').set(tasksObj);
+      document.getElementById('report-modal').classList.add('hidden');
+      showToast("Задача отправлена на проверку");
     }
 
     function approveTask(id) {
