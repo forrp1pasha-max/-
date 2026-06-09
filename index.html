@@ -194,6 +194,12 @@
       }, 4500);
     }
 
+    // === Проверка, может ли пользователь проверять задачи ===
+    function canReviewTasks() {
+      if (!currentUser) return false;
+      return ["Главный специалист", "Ведущий специалист", "Старший специалист"].includes(currentUser.role);
+    }
+
     function login() {
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
@@ -366,7 +372,6 @@
 
       let filtered = [];
       if (currentView === 'mine') {
-        // Мои задачи + задачи, которые я поставил и которые на проверке
         filtered = tasks.filter(t => 
           t.assignees.includes(currentUser.name) || 
           (t.createdBy === currentUser.name && t.status === 'review')
@@ -447,12 +452,10 @@
       db.ref('tasks').set(tasksObj);
     }
 
-    // Руководитель подтверждает → задача сразу в архив
     function approveTask(id) {
       const task = tasks.find(t => t.id === id);
       if (!task) return;
 
-      // Перемещаем в архив
       archive.push(task);
       tasks = tasks.filter(t => t.id !== id);
 
