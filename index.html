@@ -422,7 +422,6 @@
       hideActivityModal();
     }
 
-    // === ОБНОВЛЁННАЯ ФУНКЦИЯ — АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ ПРОСРОЧЕННЫХ ЗАПИСЕЙ ===
     function renderWorkload() {
       const container = document.getElementById('workload-list');
       container.innerHTML = '';
@@ -430,9 +429,8 @@
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-      // Фильтруем только активные (не просроченные) записи
       const activeActivities = activities.filter(act => {
-        if (!act.to) return true; // если нет времени окончания — показываем всегда
+        if (!act.to) return true;
         const [h, m] = act.to.split(':').map(Number);
         const endMinutes = h * 60 + m;
         return currentMinutes < endMinutes;
