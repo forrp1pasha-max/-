@@ -16,7 +16,6 @@
 </head>
 <body class="bg-zinc-950 text-white">
   <div class="flex h-screen">
-    <!-- Sidebar -->
     <div class="w-80 bg-zinc-900 border-r border-zinc-800 p-6 overflow-y-auto">
       <div class="flex items-center gap-3 mb-8">
         <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-violet-600 rounded-2xl flex items-center justify-center text-3xl font-bold">ПДБ</div>
@@ -37,12 +36,13 @@
       <button onclick="showActivityModal()" class="w-full mt-6 bg-violet-600 py-3 rounded-2xl">Отметить чем занят</button>
     </div>
 
-    <!-- Main -->
     <div class="flex-1 flex flex-col">
       <div class="h-16 border-b border-zinc-800 bg-zinc-900 px-8 flex items-center justify-between">
         <button onclick="showAddTaskModal()" class="bg-emerald-500 px-6 py-2 rounded-2xl">+ Новая задача</button>
       </div>
-      <div class="p-8 flex-1 overflow-y-auto" id="tasks-container"></div>
+      <div class="p-8 flex-1 overflow-y-auto" id="tasks-container">
+        <p class="text-zinc-500">Загрузка задач...</p>
+      </div>
     </div>
   </div>
 
@@ -55,7 +55,7 @@
       <input id="task-datetime" type="datetime-local" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6">
       <div class="flex gap-4">
         <button onclick="hideModal()" class="flex-1 py-4 rounded-2xl border border-zinc-700">Отмена</button>
-        <button onclick="addTask()" class="flex-1 py-4 rounded-2xl bg-blue-600">Создать</button>
+        <button onclick="addTask()" class="flex-1 py-4 rounded-2xl bg-blue-600">Создать задачу</button>
       </div>
     </div>
   </div>
@@ -113,12 +113,14 @@
         document.getElementById('login-modal').classList.add('hidden');
         document.getElementById('current-user').textContent = user.name;
         document.getElementById('current-role').textContent = user.role;
+        renderAll();
       } else {
         alert("Неверный логин или пароль");
       }
     }
 
     function showAddTaskModal() {
+      if (!currentUser) return alert("Сначала войдите");
       const select = document.getElementById('task-employees');
       select.innerHTML = '';
       users.forEach(u => {
@@ -159,15 +161,22 @@
 
       hideModal();
       document.getElementById('task-title').value = '';
+      alert("Задача создана!");
     }
 
     function renderTasks() {
       console.log("Задач загружено:", tasks.length);
-      // Пока просто выводим в консоль, чтобы проверить работу
+      const container = document.getElementById('tasks-container');
+      container.innerHTML = `<p class="text-emerald-400">Задач загружено: ${tasks.length}</p>`;
     }
 
     function renderWorkload() {
       console.log("Занятость обновлена:", activities.length);
+    }
+
+    function renderAll() {
+      renderTasks();
+      renderWorkload();
     }
 
     window.onload = () => {
