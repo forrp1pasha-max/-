@@ -53,6 +53,12 @@
           <input id="search-input" type="text" placeholder="🔍 Поиск задач..." 
                  class="bg-zinc-800 rounded-2xl px-5 py-2.5 w-96 outline-none focus:ring-2 focus:ring-blue-500"
                  onkeyup="renderTasks()">
+
+          <!-- Новый фильтр по исполнителю -->
+          <select id="filter-assignee" class="bg-zinc-800 rounded-2xl px-5 py-2.5 outline-none focus:ring-2 focus:ring-blue-500" onchange="renderTasks()">
+            <option value="">Все исполнители</option>
+          </select>
+
           <button onclick="showAddTaskModal()" id="add-task-btn" class="hidden bg-emerald-500 hover:bg-emerald-600 px-6 py-2.5 rounded-2xl flex items-center gap-2 font-medium">
             <i class="fas fa-plus"></i> Новая задача
           </button>
@@ -158,6 +164,18 @@
       archive = snap.val() ? Object.values(snap.val()) : [];
     });
 
+    function populateAssigneeFilter() {
+      const select = document.getElementById('filter-assignee');
+      if (!select || !currentUser) return;
+      select.innerHTML = '<option value="">Все исполнители</option>';
+      getAllowedEmployees().forEach(emp => {
+        const opt = document.createElement('option');
+        opt.value = emp.name;
+        opt.textContent = emp.name;
+        select.appendChild(opt);
+      });
+    }
+
     function login() {
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
@@ -171,6 +189,7 @@
         document.getElementById('add-task-btn').classList.toggle('hidden', user.role === "Младший специалист");
         const canSeeSub = ["Главный специалист","Ведущий специалист","Старший специалист","Специалист"].includes(user.role);
         document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
+        populateAssigneeFilter();
         renderAll();
       } else {
         alert("Неверные данные");
@@ -325,6 +344,7 @@
       }
 
       const search = document.getElementById('search-input').value.toLowerCase();
+      const assigneeFilter = document.getElementById('filter-assignee').value;
 
       let filtered = [];
       if (currentView === 'mine') {
@@ -333,6 +353,10 @@
         filtered = tasks.filter(t => getAllowedEmployees().some(u => t.assignees.includes(u.name)));
       } else if (currentView === 'archive') {
         filtered = archive;
+      }
+
+      if (assigneeFilter) {
+        filtered = filtered.filter(t => t.assignees.includes(assigneeFilter));
       }
 
       if (search) filtered = filtered.filter(t => t.title.toLowerCase().includes(search));
@@ -403,6 +427,7 @@
         document.getElementById('add-task-btn').classList.toggle('hidden', currentUser.role === "Младший специалист");
         const canSeeSub = ["Главный специалист","Ведущий специалист","Старший специалист","Специалист"].includes(currentUser.role);
         document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
+        populateAssigneeFilter();
         renderAll();
       }
     };
