@@ -151,7 +151,9 @@
     const statusMap = {
       todo: { text: "К выполнению", color: "bg-zinc-600" },
       progress: { text: "В работе", color: "bg-amber-500" },
-      done: { text: "Выполнено", color: "bg-emerald-500" }
+      review: { text: "На проверке", color: "bg-blue-500" },
+      verified: { text: "Проверено", color: "bg-emerald-500" },
+      revision: { text: "На доработку", color: "bg-orange-500" }
     };
 
     db.ref('tasks').on('value', (snap) => {
@@ -192,28 +194,6 @@
       }, 4500);
     }
 
-    // === СБРОС ЗАГРУЖЕННОСТИ КАЖДЫЙ ДЕНЬ В 7:00 ===
-    async function checkDailyReset() {
-      if (!currentUser) return;
-
-      const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
-      const currentHour = now.getHours();
-
-      const lastResetSnap = await db.ref('lastReset').once('value');
-      const lastReset = lastResetSnap.val();
-
-      if (currentHour >= 7 && lastReset !== todayStr) {
-        // Очищаем всю текущую загруженность
-        await db.ref('activities').set({});
-
-        showToast('Загруженность за вчерашний день очищена');
-
-        // Фиксируем сброс
-        await db.ref('lastReset').set(todayStr);
-      }
-    }
-
     function login() {
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
@@ -229,7 +209,6 @@
         document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
         populateAssigneeFilter();
         renderAll();
-        checkDailyReset();
       } else {
         alert("Неверные данные");
       }
@@ -256,6 +235,15 @@
       }
       if (currentUser.role === "Специалист") return users.filter(u => u.role === "Младший специалист");
       return [];
+    }
+
+    function canChangeStatus(task) {
+      return currentUser && task.assignees.includes(currentUser.name);
+    }
+
+    function canReviewTasks() {
+      if (!currentUser) return false;
+      return ["Главный специалист", "Ведущий специалист", "Старший специалист"].includes(currentUser.role);
     }
 
     function showAddTaskModal() {
@@ -408,16 +396,34 @@
           const due = task.dueDate ? new Date(task.dueDate) : null;
           const overdue = due && due < new Date() && task.status !== 'done';
           const st = statusMap[task.status];
+          const isAssignee = task.assignees.includes(currentUser.name);
+          const canReview = canReviewTasks() && task.status === 'review';
+
           html += `
             <div class="task-card bg-zinc-900 rounded-3xl p-6 border ${overdue ? 'border-red-500' : 'border-zinc-800'}">
               <div class="flex justify-between items-start">
                 <h4 class="font-medium">${task.title}</h4>
-                <span onclick="changeStatus('${task.id}')" class="cursor-pointer px-4 py-1 text-xs rounded-full ${st.color}">${st.text}</span>
+                <span onclick="${isAssignee ? `changeStatus('${task.id}')` : ''}" 
+                      class="px-4 py-1 text-xs rounded-full ${st.color} ${isAssignee ? 'cursor-pointer hover:opacity-80' : ''}">
+                  ${st.text}
+                </span>
               </div>
               <p class="text-sm text-zinc-400 mt-3">Исполнители: ${task.assignees.join(', ')}</p>
               ${task.dueDate ? `<p class="text-sm mt-2 ${overdue ? 'text-red-400' : 'text-zinc-400'}">${due.toLocaleString('ru-RU')}</p>` : ''}
               <p class="text-xs text-zinc-500 mt-2">Постановщик: ${task.createdBy}</p>
-              <button onclick="archiveTask('${task.id}')" class="text-xs text-red-400 mt-4">В архив</button>
+
+              ${canReview ? `
+                <div class="flex gap-2 mt-4">
+                  <button onclick="verifyTask('${task.id}')" 
+                          class="flex-1 text-xs bg-emerald-600 hover:bg-emerald-500 py-2 rounded-xl font-medium">
+                    ✓ Проверено
+                  </button>
+                  <button onclick="requestRevision('${task.id}')" 
+                          class="flex-1 text-xs bg-orange-600 hover:bg-orange-500 py-2 rounded-xl font-medium">
+                    На доработку
+                  </button>
+                </div>
+              ` : ''}
             </div>`;
         });
       }
@@ -428,8 +434,36 @@
     function changeStatus(id) {
       const task = tasks.find(t => t.id === id);
       if (!task) return;
-      const order = ['todo', 'progress', 'done'];
-      task.status = order[(order.indexOf(task.status) + 1) % 3];
+
+      if (!task.assignees.includes(currentUser.name)) {
+        alert("Только исполнитель может менять статус этой задачи");
+        return;
+      }
+
+      const order = ['todo', 'progress', 'review'];
+      let currentIndex = order.indexOf(task.status);
+      if (currentIndex === -1) currentIndex = 0;
+
+      task.status = order[(currentIndex + 1) % order.length];
+
+      const tasksObj = {};
+      tasks.forEach(t => tasksObj[t.id] = t);
+      db.ref('tasks').set(tasksObj);
+    }
+
+    function verifyTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+      task.status = 'verified';
+      const tasksObj = {};
+      tasks.forEach(t => tasksObj[t.id] = t);
+      db.ref('tasks').set(tasksObj);
+    }
+
+    function requestRevision(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+      task.status = 'revision';
       const tasksObj = {};
       tasks.forEach(t => tasksObj[t.id] = t);
       db.ref('tasks').set(tasksObj);
@@ -468,11 +502,6 @@
         document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
         populateAssigneeFilter();
         renderAll();
-        checkDailyReset();
-
-        setInterval(() => {
-          if (currentUser) checkDailyReset();
-        }, 10 * 60 * 1000);
       }
     };
   </script>
