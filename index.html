@@ -10,12 +10,14 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <style>
     body { font-family: 'Segoe UI', system-ui, sans-serif; }
-    .task-card { transition: all 0.3s; }
-    .task-card:hover { transform: translateY(-4px); }
+    .task-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .task-card:hover { transform: translateY(-6px); }
+    .tab-btn.active { background-color: rgb(37 99 235); color: white; }
   </style>
 </head>
 <body class="bg-zinc-950 text-white">
   <div class="flex h-screen">
+    <!-- Sidebar -->
     <div class="w-80 bg-zinc-900 border-r border-zinc-800 p-6 overflow-y-auto">
       <div class="flex items-center gap-3 mb-8">
         <div class="w-11 h-11 bg-gradient-to-br from-blue-500 to-violet-600 rounded-2xl flex items-center justify-center text-3xl font-bold">ПДБ</div>
@@ -25,38 +27,73 @@
       <div class="mb-6 bg-zinc-800 rounded-3xl p-4">
         <p class="text-zinc-400 text-sm">Текущий пользователь</p>
         <p id="current-user" class="font-semibold text-lg"></p>
-        <p id="current-role" class="text-emerald-400"></p>
+        <p id="current-role" class="text-sm text-emerald-400"></p>
       </div>
 
-      <button onclick="logout()" class="w-full mb-8 text-red-400 hover:text-red-500">Выйти</button>
+      <button onclick="logout()" class="w-full mb-8 text-red-400 hover:text-red-500 flex items-center gap-2">Выйти</button>
 
       <h2 class="text-sm uppercase tracking-widest text-zinc-500 mb-3">Текущая занятость</h2>
-      <div id="workload-list" class="space-y-3"></div>
+      <div id="workload-list" class="space-y-3 mb-8"></div>
 
-      <button onclick="showActivityModal()" class="w-full mt-6 bg-violet-600 py-3 rounded-2xl">Отметить чем занят</button>
+      <button onclick="showActivityModal()" class="w-full bg-violet-600 hover:bg-violet-500 py-3.5 rounded-2xl flex items-center justify-center gap-2 font-medium">
+        <i class="fas fa-clock"></i> Отметить чем занят
+      </button>
     </div>
 
+    <!-- Main Content -->
     <div class="flex-1 flex flex-col">
       <div class="h-16 border-b border-zinc-800 bg-zinc-900 px-8 flex items-center justify-between">
-        <button onclick="showAddTaskModal()" class="bg-emerald-500 px-6 py-2 rounded-2xl">+ Новая задача</button>
+        <div class="flex gap-4">
+          <button onclick="setView('mine')" id="btn-mine" class="tab-btn active px-6 py-2 rounded-2xl font-medium">Мои задачи</button>
+          <button onclick="setView('subordinates')" id="btn-sub" class="tab-btn hidden px-6 py-2 rounded-2xl font-medium">Задачи подчинённых</button>
+        </div>
+        <button onclick="showAddTaskModal()" id="add-task-btn" class="hidden bg-emerald-500 hover:bg-emerald-600 px-6 py-2.5 rounded-2xl flex items-center gap-2 font-medium">
+          <i class="fas fa-plus"></i> Новая задача
+        </button>
       </div>
-      <div class="p-8 flex-1 overflow-y-auto" id="tasks-container">
-        <p class="text-zinc-500">Загрузка задач...</p>
-      </div>
+      <div class="p-8 flex-1 overflow-y-auto" id="tasks-container"></div>
     </div>
   </div>
 
-  <!-- Task Modal -->
+  <!-- Modal задачи -->
   <div id="task-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-lg mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Новая задача</h3>
-      <input id="task-title" placeholder="Название задачи" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4">
-      <select id="task-employees" multiple class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 h-56"></select>
-      <input id="task-datetime" type="datetime-local" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6">
+      <input id="task-title" placeholder="Название задачи" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4 outline-none">
+      <select id="task-employees" multiple class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 h-56 outline-none"></select>
+      <input id="task-datetime" type="datetime-local" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 outline-none">
       <div class="flex gap-4">
         <button onclick="hideModal()" class="flex-1 py-4 rounded-2xl border border-zinc-700">Отмена</button>
         <button onclick="addTask()" class="flex-1 py-4 rounded-2xl bg-blue-600">Создать задачу</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal занятости -->
+  <div id="activity-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
+      <h3 class="text-2xl font-semibold mb-6">Чем сейчас занят</h3>
+      <input id="activity-desc" placeholder="Что делаю..." class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4 outline-none">
+      <select id="activity-task" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 outline-none"></select>
+      <div class="grid grid-cols-2 gap-4">
+        <input id="activity-from" type="time" class="bg-zinc-800 rounded-2xl px-5 py-4">
+        <input id="activity-to" type="time" class="bg-zinc-800 rounded-2xl px-5 py-4">
+      </div>
+      <div class="flex gap-4 mt-8">
+        <button onclick="hideActivityModal()" class="flex-1 py-4 rounded-2xl border border-zinc-700">Отмена</button>
+        <button onclick="saveActivity()" class="flex-1 py-4 rounded-2xl bg-violet-600">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div class="bg-zinc-900 rounded-3xl p-8 w-full max-w-md">
+      <h2 class="text-2xl font-bold mb-6 text-center">Вход в ПДБ</h2>
+      <input id="username" placeholder="ФИО" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4">
+      <input id="password" type="password" placeholder="Пароль" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6">
+      <button onclick="login()" class="w-full bg-blue-600 py-4 rounded-2xl font-medium">Войти</button>
+      <p class="text-center text-xs text-zinc-500 mt-4">Пароль: 1234</p>
     </div>
   </div>
 
@@ -75,6 +112,7 @@
     const db = firebase.database();
 
     let currentUser = null;
+    let currentView = 'mine';
     let tasks = [];
     let activities = [];
 
@@ -92,6 +130,12 @@
       { name: "Черных Даниил", role: "Старший специалист", password: "1234" }
     ];
 
+    const statusMap = {
+      todo: { text: "К выполнению", color: "bg-zinc-600" },
+      progress: { text: "В работе", color: "bg-amber-500" },
+      done: { text: "Выполнено", color: "bg-emerald-500" }
+    };
+
     // Реальное время
     db.ref('tasks').on('value', (snap) => {
       tasks = snap.val() ? Object.values(snap.val()) : [];
@@ -104,29 +148,53 @@
     });
 
     function login() {
-      const name = document.getElementById('username').value.trim();
-      const pass = document.getElementById('password').value;
-      const user = users.find(u => u.name === name && u.password === pass);
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const user = users.find(u => u.name === username && u.password === password);
       if (user) {
         currentUser = user;
         localStorage.setItem('currentUser', JSON.stringify(user));
         document.getElementById('login-modal').classList.add('hidden');
         document.getElementById('current-user').textContent = user.name;
         document.getElementById('current-role').textContent = user.role;
+        document.getElementById('add-task-btn').classList.toggle('hidden', user.role === "Младший специалист");
+        const canSeeSub = ["Главный специалист","Ведущий специалист","Старший специалист","Специалист"].includes(user.role);
+        document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
         renderAll();
       } else {
-        alert("Неверный логин или пароль");
+        alert("Неверные данные");
       }
     }
 
+    function logout() {
+      localStorage.removeItem('currentUser');
+      location.reload();
+    }
+
+    function setView(view) {
+      currentView = view;
+      document.getElementById('btn-mine').classList.toggle('active', view === 'mine');
+      document.getElementById('btn-sub').classList.toggle('active', view === 'subordinates');
+      renderTasks();
+    }
+
+    function getAllowedEmployees() {
+      if (!currentUser) return [];
+      if (currentUser.role === "Главный специалист") return users;
+      if (["Ведущий специалист", "Старший специалист"].includes(currentUser.role)) {
+        return users.filter(u => ["Специалист", "Младший специалист"].includes(u.role));
+      }
+      if (currentUser.role === "Специалист") return users.filter(u => u.role === "Младший специалист");
+      return [];
+    }
+
     function showAddTaskModal() {
-      if (!currentUser) return alert("Сначала войдите");
       const select = document.getElementById('task-employees');
       select.innerHTML = '';
-      users.forEach(u => {
+      getAllowedEmployees().forEach(emp => {
         const opt = document.createElement('option');
-        opt.value = u.name;
-        opt.textContent = u.name;
+        opt.value = emp.name;
+        opt.textContent = `${emp.name} (${emp.role})`;
         select.appendChild(opt);
       });
       document.getElementById('task-modal').classList.remove('hidden');
@@ -138,18 +206,17 @@
 
     function addTask() {
       const title = document.getElementById('task-title').value.trim();
-      const selected = Array.from(document.getElementById('task-employees').selectedOptions).map(o => o.value);
+      const selected = Array.from(document.getElementById('task-employees').selectedOptions).map(opt => opt.value);
+      const due = document.getElementById('task-datetime').value;
 
-      if (!title || selected.length === 0) {
-        alert("Введите название и выберите исполнителя");
-        return;
-      }
+      if (!title || selected.length === 0) return alert("Введите название и выберите исполнителя");
 
       selected.forEach(name => {
         tasks.push({
           id: 'task_' + Date.now(),
           title: title,
           assignees: [name],
+          dueDate: due,
           status: 'todo',
           createdBy: currentUser.name
         });
@@ -161,17 +228,86 @@
 
       hideModal();
       document.getElementById('task-title').value = '';
-      alert("Задача создана!");
     }
 
-    function renderTasks() {
-      console.log("Задач загружено:", tasks.length);
-      const container = document.getElementById('tasks-container');
-      container.innerHTML = `<p class="text-emerald-400">Задач загружено: ${tasks.length}</p>`;
+    function showActivityModal() {
+      const myTasks = tasks.filter(t => t.assignees.includes(currentUser.name) && t.status !== 'done');
+      const select = document.getElementById('activity-task');
+      select.innerHTML = '<option value="">— Без привязки к задаче —</option>';
+      myTasks.forEach(task => {
+        const opt = document.createElement('option');
+        opt.value = task.id;
+        opt.textContent = task.title;
+        select.appendChild(opt);
+      });
+      document.getElementById('activity-modal').classList.remove('hidden');
+    }
+
+    function hideActivityModal() {
+      document.getElementById('activity-modal').classList.add('hidden');
+    }
+
+    function saveActivity() {
+      const desc = document.getElementById('activity-desc').value.trim();
+      const taskId = document.getElementById('activity-task').value;
+      const from = document.getElementById('activity-from').value;
+      const to = document.getElementById('activity-to').value;
+
+      if (!desc || !from || !to) return alert("Заполните все поля");
+
+      const newAct = {
+        id: 'act_' + Date.now(),
+        user: currentUser.name,
+        description: desc,
+        taskId: taskId || null,
+        from: from,
+        to: to,
+        timestamp: Date.now()
+      };
+
+      activities.push(newAct);
+      const actsObj = {};
+      activities.forEach(a => actsObj[a.id] = a);
+      db.ref('activities').set(actsObj);
+      hideActivityModal();
     }
 
     function renderWorkload() {
-      console.log("Занятость обновлена:", activities.length);
+      const container = document.getElementById('workload-list');
+      container.innerHTML = '';
+      users.forEach(user => {
+        const userActs = activities.filter(a => a.user === user.name);
+        if (userActs.length > 0) {
+          let html = `<div class="mb-4"><div class="font-medium mb-2">${user.name.split(' ')[0]}</div>`;
+          userActs.forEach(act => {
+            html += `
+              <div class="bg-zinc-800 rounded-2xl p-3 mb-2 flex justify-between">
+                <div>
+                  <div class="text-xs text-zinc-400">${act.from} — ${act.to}</div>
+                  <div class="text-sm">${act.description}</div>
+                </div>
+                <button onclick="deleteActivity('${act.id}')" class="text-red-400 text-xl leading-none">×</button>
+              </div>`;
+          });
+          html += `</div>`;
+          container.innerHTML += html;
+        } else {
+          container.innerHTML += `<div class="bg-zinc-900 rounded-2xl p-3 text-sm text-zinc-500 mb-3">${user.name.split(' ')[0]} — свободен</div>`;
+        }
+      });
+    }
+
+    function deleteActivity(id) {
+      if (!confirm("Удалить запись?")) return;
+      activities = activities.filter(a => a.id !== id);
+      const actsObj = {};
+      activities.forEach(a => actsObj[a.id] = a);
+      db.ref('activities').set(actsObj);
+    }
+
+    function renderTasks() {
+      const container = document.getElementById('tasks-container');
+      container.innerHTML = `<p class="text-emerald-400">Задач загружено: ${tasks.length}</p>`;
     }
 
     function renderAll() {
@@ -180,9 +316,17 @@
     }
 
     window.onload = () => {
-      document.getElementById('username').value = "Фазылов Азат";
-      document.getElementById('password').value = "1234";
-      login();
+      const saved = localStorage.getItem('currentUser');
+      if (saved) {
+        currentUser = JSON.parse(saved);
+        document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('current-user').textContent = currentUser.name;
+        document.getElementById('current-role').textContent = currentUser.role;
+        document.getElementById('add-task-btn').classList.toggle('hidden', currentUser.role === "Младший специалист");
+        const canSeeSub = ["Главный специалист","Ведущий специалист","Старший специалист","Специалист"].includes(currentUser.role);
+        document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
+        renderAll();
+      }
     };
   </script>
 </body>
