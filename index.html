@@ -74,7 +74,7 @@
     <span id="toast-text"></span>
   </div>
 
-  <!-- Модальное окно создания задачи -->
+  <!-- Модальные окна -->
   <div id="task-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-lg mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Новая задача</h3>
@@ -88,7 +88,6 @@
     </div>
   </div>
 
-  <!-- Модальное окно делегирования -->
   <div id="delegate-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Делегировать задачу</h3>
@@ -111,7 +110,6 @@
     </div>
   </div>
 
-  <!-- Модальное окно занятости -->
   <div id="activity-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Чем сейчас занят</h3>
@@ -305,9 +303,6 @@
       document.getElementById('task-title').value = '';
     }
 
-    // === ДЕЛЕГИРОВАНИЕ ===
-    let currentDelegatingTaskId = null;
-
     function showDelegateModal(taskId) {
       currentDelegatingTaskId = taskId;
       const task = tasks.find(t => t.id === taskId);
@@ -333,6 +328,8 @@
       document.getElementById('delegate-modal').classList.add('hidden');
       currentDelegatingTaskId = null;
     }
+
+    let currentDelegatingTaskId = null;
 
     function confirmDelegate() {
       const task = tasks.find(t => t.id === currentDelegatingTaskId);
@@ -363,43 +360,6 @@
       hideDelegateModal();
       showToast(`Задача делегирована ${newAssignee}`);
       renderTasks();
-    }
-
-    // === ИЗМЕНЕНИЕ СТАТУСА + ОТЧЁТ ПРИ ЗАКРЫТИИ ===
-    function changeStatus(id) {
-      const task = tasks.find(t => t.id === id);
-      if (!task || !task.assignees.includes(currentUser.name)) {
-        alert("Только исполнитель может менять статус этой задачи");
-        return;
-      }
-
-      const order = ['todo', 'progress', 'review'];
-      let currentIndex = order.indexOf(task.status);
-      if (currentIndex === -1) currentIndex = 0;
-
-      const newStatus = order[(currentIndex + 1) % order.length];
-
-      // Если исполнитель отправляет на проверку — требуем отчёт
-      if (newStatus === 'review') {
-        const report = prompt("Напиши отчёт по задаче (обязательно):");
-        if (!report || report.trim() === "") {
-          alert("Отчёт обязателен для отправки задачи на проверку");
-          return;
-        }
-        if (!task.comments) task.comments = [];
-        task.comments.push({
-          text: report,
-          by: currentUser.name,
-          type: "report",
-          timestamp: Date.now()
-        });
-      }
-
-      task.status = newStatus;
-
-      const tasksObj = {};
-      tasks.forEach(t => tasksObj[t.id] = t);
-      db.ref('tasks').set(tasksObj);
     }
 
     function showActivityModal() {
@@ -444,11 +404,25 @@
       hideActivityModal();
     }
 
+    // === ОБНОВЛЁННАЯ ФУНКЦИЯ — АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ ПРОСРОЧЕННЫХ ЗАПИСЕЙ ===
     function renderWorkload() {
       const container = document.getElementById('workload-list');
       container.innerHTML = '';
+
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      // Фильтруем только активные (не просроченные) записи
+      const activeActivities = activities.filter(act => {
+        if (!act.to) return true; // если нет времени окончания — показываем всегда
+        const [h, m] = act.to.split(':').map(Number);
+        const endMinutes = h * 60 + m;
+        return currentMinutes < endMinutes;
+      });
+
       users.forEach(user => {
-        const userActs = activities.filter(a => a.user === user.name);
+        const userActs = activeActivities.filter(a => a.user === user.name);
+
         if (userActs.length > 0) {
           let html = `<div class="mb-4"><div class="font-medium mb-2">${user.name.split(' ')[0]}</div>`;
           userActs.forEach(act => {
@@ -567,6 +541,41 @@
       container.innerHTML = html;
     }
 
+    function changeStatus(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task || !task.assignees.includes(currentUser.name)) {
+        alert("Только исполнитель может менять статус этой задачи");
+        return;
+      }
+
+      const order = ['todo', 'progress', 'review'];
+      let currentIndex = order.indexOf(task.status);
+      if (currentIndex === -1) currentIndex = 0;
+
+      const newStatus = order[(currentIndex + 1) % order.length];
+
+      if (newStatus === 'review') {
+        const report = prompt("Напиши отчёт по задаче (обязательно):");
+        if (!report || report.trim() === "") {
+          alert("Отчёт обязателен для отправки на проверку");
+          return;
+        }
+        if (!task.comments) task.comments = [];
+        task.comments.push({
+          text: report,
+          by: currentUser.name,
+          type: "report",
+          timestamp: Date.now()
+        });
+      }
+
+      task.status = newStatus;
+
+      const tasksObj = {};
+      tasks.forEach(t => tasksObj[t.id] = t);
+      db.ref('tasks').set(tasksObj);
+    }
+
     function approveTask(id) {
       const task = tasks.find(t => t.id === id);
       if (!task) return;
@@ -616,6 +625,11 @@
         document.getElementById('btn-sub').classList.toggle('hidden', !canSeeSub);
         populateAssigneeFilter();
         renderAll();
+
+        // Автообновление занятости каждую минуту
+        setInterval(() => {
+          renderWorkload();
+        }, 60000);
       }
     };
   </script>
