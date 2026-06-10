@@ -75,13 +75,20 @@
     <span id="toast-text"></span>
   </div>
 
-  <!-- Модальные окна -->
+  <!-- Модальное окно создания задачи -->
   <div id="task-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50" onclick="if(event.target===this)hideModal()">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-lg mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Новая задача</h3>
       <input id="task-title" placeholder="Название задачи" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-4 outline-none">
       <select id="task-employees" multiple class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 h-56 outline-none"></select>
       <input id="task-datetime" type="datetime-local" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 mb-6 outline-none">
+      
+      <!-- НОВОЕ: Вес задачи -->
+      <div class="mb-6">
+        <label class="block text-sm text-zinc-400 mb-2">Вес задачи (%)</label>
+        <input id="task-weight" type="number" min="0" max="100" value="100" class="w-full bg-zinc-800 rounded-2xl px-5 py-4 outline-none">
+      </div>
+
       <div class="flex gap-4">
         <button onclick="hideModal()" class="flex-1 py-4 rounded-2xl border border-zinc-700">Отмена</button>
         <button onclick="addTask()" class="flex-1 py-4 rounded-2xl bg-blue-600">Создать задачу</button>
@@ -89,6 +96,7 @@
     </div>
   </div>
 
+  <!-- Модальное окно делегирования -->
   <div id="delegate-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50" onclick="if(event.target===this)hideDelegateModal()">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Делегировать задачу</h3>
@@ -104,6 +112,12 @@
                   class="w-full bg-zinc-800 rounded-2xl px-5 py-3 outline-none resize-y"></textarea>
       </div>
 
+      <!-- НОВОЕ: Вес задачи при делегировании -->
+      <div class="mb-6">
+        <label class="block text-sm text-zinc-400 mb-2">Вес задачи (%)</label>
+        <input id="delegate-weight" type="number" min="0" max="100" value="100" class="w-full bg-zinc-800 rounded-2xl px-5 py-3 outline-none">
+      </div>
+
       <div class="flex gap-4">
         <button onclick="hideDelegateModal()" class="flex-1 py-4 rounded-2xl border border-zinc-700">Отмена</button>
         <button onclick="confirmDelegate()" class="flex-1 py-4 rounded-2xl bg-blue-600">Делегировать</button>
@@ -111,6 +125,7 @@
     </div>
   </div>
 
+  <!-- Остальные модальные окна (activity, report, login) — без изменений -->
   <div id="activity-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50" onclick="if(event.target===this)hideActivityModal()">
     <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 p-8">
       <h3 class="text-2xl font-semibold mb-6">Чем сейчас занят</h3>
@@ -299,6 +314,7 @@
       const title = document.getElementById('task-title').value.trim();
       const selected = Array.from(document.getElementById('task-employees').selectedOptions).map(opt => opt.value);
       const due = document.getElementById('task-datetime').value;
+      const weight = parseInt(document.getElementById('task-weight').value) || 100;
 
       if (!title || selected.length === 0) return showToast("Введите название и выберите исполнителя", "error");
 
@@ -310,6 +326,7 @@
           dueDate: due,
           status: 'todo',
           createdBy: currentUser.name,
+          weight: weight,
           comments: []
         });
       });
@@ -320,6 +337,7 @@
 
       hideModal();
       document.getElementById('task-title').value = '';
+      document.getElementById('task-weight').value = '100';
       showToast(`Создано задач: ${selected.length}`);
     }
 
@@ -340,6 +358,8 @@
         select.appendChild(opt);
       });
 
+      // Предзаполняем текущий вес задачи
+      document.getElementById('delegate-weight').value = task.weight || 100;
       document.getElementById('delegate-comment').value = '';
       document.getElementById('delegate-modal').classList.remove('hidden');
     }
@@ -357,12 +377,15 @@
 
       const newAssignee = document.getElementById('delegate-to').value;
       const commentText = document.getElementById('delegate-comment').value.trim();
+      const weight = parseInt(document.getElementById('delegate-weight').value) || 100;
 
       if (!newAssignee) return showToast("Выберите сотрудника", "error");
 
       if (!task.assignees.includes(newAssignee)) {
         task.assignees.push(newAssignee);
       }
+
+      task.weight = weight; // обновляем вес задачи
 
       if (!task.comments) task.comments = [];
       task.comments.push({
@@ -381,6 +404,8 @@
       showToast(`Задача делегирована ${newAssignee}`);
       renderTasks();
     }
+
+    // Остальные функции (showActivityModal, saveActivity, renderWorkload, deleteActivity, changeStatus, submitReport, approveTask, requestRevision, renderAll и т.д.) — без изменений из предыдущей версии
 
     function showActivityModal() {
       const myTasks = tasks.filter(t => t.assignees.includes(currentUser.name) && t.status !== 'done');
@@ -523,6 +548,7 @@
               <p class="text-sm text-zinc-400 mt-3">Исполнители: ${task.assignees.join(', ')}</p>
               ${task.dueDate ? `<p class="text-sm mt-2 ${overdue ? 'text-red-400' : 'text-zinc-400'}">${due.toLocaleString('ru-RU')}</p>` : ''}
               <p class="text-xs text-zinc-500 mt-2">Постановщик: ${task.createdBy}</p>
+              <p class="text-xs text-zinc-500 mt-1">Вес: ${task.weight || 100}%</p>
 
               ${task.verifiedBy ? `
                 <p class="text-xs text-emerald-400 mt-2">Проверил: ${task.verifiedBy}</p>
@@ -613,7 +639,6 @@
 
       if (!task.comments) task.comments = [];
 
-      // Определяем, кому отправлять на проверку по цепочке делегирования
       let reviewTarget = task.createdBy;
       const lastDelegation = [...task.comments]
         .reverse()
